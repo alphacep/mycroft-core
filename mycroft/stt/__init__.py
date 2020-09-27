@@ -491,6 +491,44 @@ class GoogleCloudStreamingSTT(StreamingSTT):
         )
 
 
+class VoskStreamThread(StreamThread):
+    def __init__(self, queue, lang, model):
+        from vosk import KaldiRecognizer
+
+        super().__init__(queue, lang)
+        self.recognizer = KaldiRecognizer(model, 16000)
+
+    def handle_audio_stream(self, audio, language):
+        if self.recognizer.AcceptWaveform(audio):
+            res = json.loads(self.recognizer.Result())
+            self.text = res['text']
+        return self.text
+
+
+class VoskStreamingSTT(StreamingSTT):
+    """
+        Streaming STT interface for Vosk Speech-To-Text
+        To use pip install vosk to install the engine,
+        download and unpack the model.
+    """
+
+    def __init__(self):
+        from vosk import Model
+
+        super(VoskStreamingSTT, self).__init__()
+        # override language with module specific language selection
+        self.language = self.config.get('lang') or self.lang
+        self.model = Model("/opt/vosk/models/" + lang)
+
+    def create_streaming_thread(self):
+        self.queue = Queue()
+        return VoskStreamThread(
+            self.queue,
+            self.language,
+            self.model
+        )
+
+
 class KaldiSTT(STT):
     def __init__(self):
         super(KaldiSTT, self).__init__()
@@ -562,7 +600,8 @@ class STTFactory:
         "deepspeech_server": DeepSpeechServerSTT,
         "deepspeech_stream_server": DeepSpeechStreamServerSTT,
         "mycroft_deepspeech": MycroftDeepSpeechSTT,
-        "yandex": YandexSTT
+        "yandex": YandexSTT,
+        "vosk_streaming": VoskStreamingSTT
     }
 
     @staticmethod
